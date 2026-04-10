@@ -1,0 +1,61 @@
+erDiagram
+
+    POLICY }o--|| CARRIER : "belongs to"
+    AGENT ||--o{ POLICY : "underwrites"
+    
+    POLICY ||--|| POLICY_GROUP : "covers"
+
+    POLICY_GROUP ||--o{ POLICY_PERSON : "includes"
+    PERSON ||--o{ POLICY_PERSON : "included in"
+
+    AGENT {
+        uuid id PK
+        string name "NOT NULL"
+        string email "NOT NULL"
+        string phone "NOT NULL"
+        int npn "NOT NULL"
+        boolean is_active "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+
+    CARRIER {
+        uuid id PK
+        string name "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+
+    POLICY {
+        uuid id PK
+        uuid carrier_id FK "NOT NULL"
+        uuid agent_id FK "NOT NULL"
+        string policy_number "NOT NULL"
+        string effective_date "NOT NULL"
+        boolean is_active "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+
+    POLICY_GROUP {
+        uuid id PK
+        uuild policy_id FK "NOT NULL UNIQUE"
+        string name
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+
+    POLICY_PERSON {
+        uuid id PK
+        uuid policy_group_id FK "NOT NULL"
+        uuid person_id FK "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }
+
+    PERSON {
+        uuid id PK
+        string display_name "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at "NOT NULL"
+    }

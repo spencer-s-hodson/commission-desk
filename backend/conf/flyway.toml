@@ -1,0 +1,15 @@
+# Used by the Flyway CLI when run from the backend directory (see README).
+# Spring Boot applies the same migrations on startup.
+
+[environments.local]
+url = "jdbc:postgresql://localhost:5432/commissiondesk"
+user = "commissiondesk"
+password = "commissiondesk"
+
+[flyway]
+environment = "local"
+locations = ["filesystem:src/main/resources/db/migration"]
+# Allow `flyway validate` on a fresh DB (migrations on disk not applied yet). Keep ignoring future versions (Flyway default).
+ignoreMigrationPatterns = ["*:future", "*:pending"]
+# `clean` drops all objects in managed schemas — local Docker DB only.
+cleanDisabled = false

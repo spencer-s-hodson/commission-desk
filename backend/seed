@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+CONTAINER="${POSTGRES_CONTAINER:-commissiondesk-postgres}"
+PG_USER="${POSTGRES_USER:-commissiondesk}"
+PG_DB="${POSTGRES_DB:-commissiondesk}"
+SEEDERS_DIR="$ROOT/src/main/resources/db/seeders"
+
+# Expands psql \ir / relative \i to a single SQL stream (stdout). Resolves paths
+# relative to the including file so Docker does not need a /seeders volume.
+expand_seed_file() {
+  local file="$1"
+  file=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
+  local dir
+  dir=$(dirname "$file")
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    local rel=""
+    if [[ "$line" =~ ^[[:space:]]*\\ir[[:space:]]+([^[:space:]]+) ]]; then
+      rel="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*\\i[[:space:]]+([^[:space:]]+) ]] && [[ "${BASH_REMATCH[1]}" != /* ]]; then
+      rel="${BASH_REMATCH[1]}"
+    fi
+    if [[ -n "$rel" ]]; then
+      local inc="$dir/$rel"
+      if [[ ! -f "$inc" ]]; then
+        echo "$(basename "$0"): include not found: $rel (referenced from $file)" >&2
+        exit 1
+      fi
+      expand_seed_file "$inc"
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$file"
+}
+
+usage() {
+  echo "Usage: $(basename "$0") <file.sql>" >&2
+  echo "  Runs SQL against Docker Postgres ($CONTAINER)." >&2
+  echo "  If <file.sql> has no slash, looks under: $SEEDERS_DIR" >&2
+  echo "  Under seeders, \\ir and relative \\i are expanded on the host, then sent to psql." >&2
+  echo "  Example: $(basename "$0") 000_all.sql" >&2
+  echo "  Example: $(basename "$0") 001_sample_data.sql" >&2
+  exit 1
+}
+
+[[ $# -ge 1 ]] || usage
+
+FILE="$1"
+if [[ -f "$FILE" ]]; then
+  SQL_PATH="$FILE"
+elif [[ -f "$SEEDERS_DIR/$FILE" ]]; then
+  SQL_PATH="$SEEDERS_DIR/$FILE"
+else
+  echo "Seed file not found: $FILE (tried cwd and $SEEDERS_DIR)" >&2
+  exit 1
+fi
+
+SQL_ABS="$(cd "$(dirname "$SQL_PATH")" && pwd)/$(basename "$SQL_PATH")"
+SEEDERS_ABS="$(cd "$SEEDERS_DIR" && pwd)"
+
+if [[ "$SQL_ABS" == "$SEEDERS_ABS"/* ]]; then
+  docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" \
+    < <(expand_seed_file "$SQL_ABS")
+else
+  docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" <"$SQL_ABS"
+fi
